@@ -2,7 +2,7 @@ name: Build APK
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main, master, New ]
   workflow_dispatch:
 
 jobs:
@@ -22,13 +22,24 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      - name: Make gradlew executable
-        run: chmod +x ./gradlew
+      - name: Locate project folder
+        run: |
+          GW=$(find . -name gradlew -not -path "*/node_modules/*" | head -n 1)
+          if [ -z "$GW" ]; then
+            echo "gradlew not found. Files in repo:"; find . -maxdepth 3 -not -path "./.git/*" | head -50
+            exit 1
+          fi
+          DIR=$(dirname "$GW")
+          echo "PROJECT_DIR=$DIR" >> "$GITHUB_ENV"
+          echo "Project found in: $DIR"
 
       - name: Build debug APK
-        run: ./gradlew assembleDebug --stacktrace --no-daemon
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          chmod +x ./gradlew
+          ./gradlew assembleDebug --stacktrace --no-daemon
 
       - uses: actions/upload-artifact@v4
         with:
           name: MovieLink-debug-apk
-          path: app/build/outputs/apk/debug/*.apk
+          path: ${{ env.PROJECT_DIR }}/app/build/outputs/apk/debug/*.apk
