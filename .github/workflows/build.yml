@@ -39,7 +39,16 @@ jobs:
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           chmod +x ./gradlew
-          ./gradlew assembleDebug --stacktrace --no-daemon
+          for attempt in 1 2 3; do
+            if ./gradlew assembleDebug --stacktrace --no-daemon; then
+              exit 0
+            fi
+            if [ "$attempt" -lt 3 ]; then
+              echo "Gradle build failed (attempt $attempt/3). Waiting 30s before retrying..."
+              sleep 30
+            fi
+          done
+          exit 1
 
       - uses: actions/upload-artifact@v4
         with:
