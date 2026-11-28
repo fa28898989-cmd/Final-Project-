@@ -1,73 +1,82 @@
 name: Build APK
 
-on:
-push:
-branches: [ main, master, New ]
-workflow_dispatch:
+'on':
+  push:
+    branches:
+      - main
+      - master
+      - Experiment
+  workflow_dispatch:
 
 jobs:
-build:
-runs-on: ubuntu-latest
-timeout-minutes: 40
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
 
-steps:
-  - uses: actions/checkout@v4
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-  - name: Unzip project
-    run: |
-      mkdir -p project
-      unzip -q -o Noxera-Android-Compose.zip -d project
+      - name: Unzip project
+        run: |
+          mkdir -p project
+          unzip -q -o Noxera-Android-Compose.zip -d project
 
-      PROJECT_DIR=""
+          PROJECT_DIR=""
 
-      while IFS= read -r -d '' GW; do
-        DIR=$(dirname "$GW")
+          while IFS= read -r -d '' GW; do
+            DIR=$(dirname "$GW")
 
-        if [ -f "$DIR/settings.gradle" ] || [ -f "$DIR/settings.gradle.kts" ]; then
-          PROJECT_DIR="$DIR"
-          break
-        fi
-      done < <(find project -type f -name gradlew -print0)
+            if { [ -f "$DIR/settings.gradle" ] || [ -f "$DIR/settings.gradle.kts" ]; } && \
+               { [ -f "$DIR/build.gradle" ] || [ -f "$DIR/build.gradle.kts" ]; }; then
+              PROJECT_DIR="$DIR"
+              break
+            fi
+          done < <(find project -type f -name gradlew -print0)
 
-      if [ -z "$PROJECT_DIR" ]; then
-        echo "ERROR: Could not find a valid Gradle root containing both gradlew and settings.gradle(.kts)."
-        echo "Extracted ZIP structure:"
-        find project -maxdepth 5 -type f | head -n 150
-        exit 1
-      fi
+          if [ -z "$PROJECT_DIR" ]; then
+            echo "ERROR: Valid Gradle project root not found."
+            echo "Extracted ZIP structure:"
+            find project -maxdepth 5 -type f | head -n 150
+            exit 1
+          fi
 
-      echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
-      echo "Detected Gradle root: $PROJECT_DIR"
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+          echo "Detected Gradle root: $PROJECT_DIR"
 
-  - uses: actions/setup-java@v4
-    with:
-      distribution: temurin
-      java-version: 17
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
 
-  - name: Accept Android SDK licenses
-    run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+      - name: Accept Android SDK licenses
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
 
-  - uses: gradle/actions/setup-gradle@v4
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
 
-  - name: Build debug APK
-    working-directory: ${{ env.PROJECT_DIR }}
-    run: |
-      chmod +x ./gradlew
+      - name: Build debug APK
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          chmod +x ./gradlew
 
-      for attempt in 1 2 3; do
-        if ./gradlew assembleDebug --stacktrace --no-daemon; then
-          exit 0
-        fi
+          for attempt in 1 2 3; do
+            if ./gradlew assembleDebug --stacktrace --no-daemon; then
+              exit 0
+            fi
 
-        if [ "$attempt" -lt 3 ]; then
-          echo "Gradle build failed (attempt $attempt/3). Waiting 30s before retrying..."
-          sleep 30
-        fi
-      done
+            if [ "$attempt" -lt 3 ]; then
+              echo "Gradle build failed (attempt $attempt/3). Waiting 30s..."
+              sleep 30
+            fi
+          done
 
-      exit 1
+          exit 1
 
-  - uses: actions/upload-artifact@v4
-    with:
-      name: Noxera-debug-apk
-      path: ${{ env.PROJECT_DIR }}/app/build/outputs/apk/debug/*.apk
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Noxera-debug-apk
+          path: ${{ env.PROJECT_DIR }}/app/build/outputs/apk/debug/*.apk
