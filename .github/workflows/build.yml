@@ -13,23 +13,26 @@ timeout-minutes: 40
 steps:
   - uses: actions/checkout@v4
 
-  - name: Unzip project and detect Gradle root
+  - name: Unzip project
     run: |
       mkdir -p project
       unzip -q -o Noxera-Android-Compose.zip -d project
 
-      SETTINGS=$(find project -type f \( -name settings.gradle -o -name settings.gradle.kts \) | head -n 1)
+      PROJECT_DIR=""
 
-      if [ -z "$SETTINGS" ]; then
-        echo "ERROR: settings.gradle or settings.gradle.kts not found!"
-        find project -maxdepth 4 -type f | head -n 100
-        exit 1
-      fi
+      while IFS= read -r -d '' GW; do
+        DIR=$(dirname "$GW")
 
-      PROJECT_DIR=$(dirname "$SETTINGS")
+        if [ -f "$DIR/settings.gradle" ] || [ -f "$DIR/settings.gradle.kts" ]; then
+          PROJECT_DIR="$DIR"
+          break
+        fi
+      done < <(find project -type f -name gradlew -print0)
 
-      if [ ! -f "$PROJECT_DIR/gradlew" ]; then
-        echo "ERROR: gradlew not found in Gradle root: $PROJECT_DIR"
+      if [ -z "$PROJECT_DIR" ]; then
+        echo "ERROR: Could not find a valid Gradle root containing both gradlew and settings.gradle(.kts)."
+        echo "Extracted ZIP structure:"
+        find project -maxdepth 5 -type f | head -n 150
         exit 1
       fi
 
@@ -57,7 +60,7 @@ steps:
         fi
 
         if [ "$attempt" -lt 3 ]; then
-          echo "Gradle build failed (attempt $attempt/3). Waiting 30s..."
+          echo "Gradle build failed (attempt $attempt/3). Waiting 30s before retrying..."
           sleep 30
         fi
       done
