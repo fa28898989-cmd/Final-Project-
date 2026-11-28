@@ -15,7 +15,7 @@ jobs:
       - name: Unzip project
         run: |
           mkdir -p project
-          unzip -q -o MovieLink-Android-Compose.zip -d project
+          unzip -q -o Noxera-Android-Compose.zip -d project
           # handle a zip that has a single top-level folder
           if [ ! -f project/gradlew ]; then
             GW=$(find project -name gradlew | head -n 1)
@@ -52,5 +52,5 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: MovieLink-debug-apk
+          name: Noxera-debug-apk
           path: ${{ env.PROJECT_DIR }}/app/build/outputs/apk/debug/*.apk
